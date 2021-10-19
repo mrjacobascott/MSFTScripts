@@ -1,0 +1,54 @@
+<#
+Script Name         : 19043.WDAC.RemoteWipe_Fix
+
+Script Description  : This script will update WinRE image with files from current installation to address an issue with remote wipe and Code Integrity
+
+Script OS Version   : 10.0.19043 Build 19043
+
+#>
+
+
+$exitCode = 0
+
+    # start logging to TEMP in file "scriptname".log
+   
+Start-Transcript -Path "$env:TEMP\winre_maintenance_logs_$(get-date -f MM-yyyy).log" -Append | Out-Null
+
+     try
+     {
+        #variables
+        Set-Location -Path $env:TEMP
+        $random = Get-Random -Maximum 99999
+        $CreateFolder = "$env:TEMP\" + "winRE_maintenance_temp" + "$random" + $(get-date -f MM-yyyy) + "\"
+        write-host "$CreateFolder"
+        $WorkingFolder = New-Item -Type Directory $CreateFolder
+        write-host "$WorkingFolder"
+
+        #mount and update WinRE
+        reagentc.exe /mountre /path "$WorkingFolder"
+        robocopy.exe C:\Windows\system32\CatRoot\ $WorkingFolder\windows\system32\CatRoot\ /E /XN /XO /XC
+        Set-Location -Path $env:TEMP
+        
+        
+        #save and unmount
+        Get-WindowsImage -mounted |Dismount-WindowsImage -Save -ErrorAction SilentlyContinue
+
+        #cleanup
+        Get-WindowsImage -mounted |Dismount-WindowsImage -Discard -ErrorAction SilentlyContinue
+        Remove-item -path $WorkingFolder -Force -Recurse
+
+        $exitCode = 0
+
+     }
+     catch
+     {   
+        #cleanup
+        Get-WindowsImage -mounted |Dismount-WindowsImage -Discard -ErrorAction SilentlyContinue
+        
+        Write-Error -Message "Could not deploy" -Category OperationStopped
+        $exitCode = -1
+     }
+
+    Stop-Transcript | Out-Null
+
+exit $exitCode
